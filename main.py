@@ -13,12 +13,13 @@ cursor = conn.cursor()
 bot = Bot(TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
-
+GENRES = {}
 
 class StepForm(StatesGroup):
     name_movie = State()
     year_genre = State()
     add_to_db = State()
+    genre = State()
 
 
 @dp.message_handler(commands=['start'])
@@ -37,6 +38,20 @@ async def option_callback(callback: types.CallbackQuery):
     if callback.data == "add_film":
         await bot.send_message(callback.message.chat.id, "What movie do you want to add?")
         await StepForm.name_movie.set()
+    if callback.data == "sort":
+        # global GENRES
+        genres = get_genre_in_db(callback.message.chat.id)
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        for genre in genres:
+            markup.add(types.InlineKeyboardButton(f"{genre[0]}", callback_data=genre[0]))
+        await StepForm.genre.set()
+        await callback.message.answer("Please, choose the genre of the movies, what you wont to sort by", reply_markup=markup)
+
+@dp.callback_query_handler(state=StepForm.genre)
+async def get_list_by_genre(callback: types.CallbackQuery, state: FSMContext):
+    genre = callback.data
+    res = sort_movie(genre, callback.message.chat.id)
+    await callback.message.answer(f"{res}")
 
 
 @dp.message_handler(state=StepForm.name_movie)
@@ -44,21 +59,26 @@ async def input_name(message: types.Message, state: FSMContext):
     name = message.text
     async with state.proxy() as data:
         data['name_movie'] = name
-    a = data.get('name_movie')
     markup1 = types.InlineKeyboardMarkup(row_width=2)
     btn1 = types.InlineKeyboardButton("Yes", callback_data="yes")
     btn2 = types.InlineKeyboardButton("No", callback_data="no")
     markup1.add(btn1, btn2)
     await message.answer(f'Do you want to add the release year and the genre of the movie?', reply_markup=markup1)
-    # user_id = message.chat.id
-    # add_movie_to_db(name, user_id)
+
 
 @dp.callback_query_handler(state=StepForm.name_movie)
-async def add_information_about_film(callback: types.CallbackQuery):
+async def add_information_about_film(callback: types.CallbackQuery, state: FSMContext):
     if callback.data == "yes":
         await bot.send_message(callback.message.chat.id, "What is the release year and genre of the movie?\n"
                                                          "Please, enter the information separated by a space")
         await StepForm.next()
+    if callback.data == "no":
+        data = await state.get_data()
+        name_movie, user_id = data.get("name_movie"), callback.message.chat.id
+        if add_movie_to_db(user_id, name_movie):
+            await callback.message.answer(f'The movie has been added')
+
+
 
 @dp.message_handler(state=StepForm.year_genre)
 async def input_year(message: types.Message, state: FSMContext):
@@ -90,10 +110,9 @@ async def user_check_inf(callback: types.CallbackQuery, state: FSMContext):
         name, year, genre = (data["name_movie"], data["year"], data["genre"])
         if add_movie_to_db(callback.message.chat.id, name, year, genre):
             await callback.message.answer(f'The movie has been added')
-
-
-
-        # await StepForm.year_genre.set()
+            await state.finish()
+    if callback.data == "no":
+        await StepForm.year_genre.set()
 
 
 def add_movie_to_db(user_id, name, year=None, genre=None):
@@ -103,6 +122,18 @@ def add_movie_to_db(user_id, name, year=None, genre=None):
     conn.commit()
     return True
 
+def sort_movie(genre, user_id):
+    cursor.execute("SELECT name FROM Movies WHERE GENRE = ? AND UserId = ?", (genre, user_id))
+    res = cursor.fetchall()
+    conn.commit()
+    return res
+
+
+def get_genre_in_db(user_id):
+    cursor.execute("SELECT DISTINCT GENRE FROM Movies WHERE UserId = ? AND (GENRE NOT NULL)", (user_id, ))
+    res = cursor.fetchall()
+    conn.commit()
+    return res
 
 
 
