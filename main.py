@@ -39,7 +39,6 @@ async def option_callback(callback: types.CallbackQuery):
         await bot.send_message(callback.message.chat.id, "What movie do you want to add?")
         await StepForm.name_movie.set()
     if callback.data == "sort":
-        # global GENRES
         genres = get_genre_in_db(callback.message.chat.id)
         markup = types.InlineKeyboardMarkup(row_width=1)
         for genre in genres:
