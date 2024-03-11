@@ -2,12 +2,10 @@ from aiogram import Bot, Dispatcher, types, executor
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import StatesGroup, State
-import sqlite3
+import functionals_for_databasa
 
 TOKEN = open("TOKEN.txt", 'r').read()
 
-conn = sqlite3.connect("database.db", check_same_thread=False)
-cursor = conn.cursor()
 
 
 bot = Bot(TOKEN)
@@ -39,7 +37,7 @@ async def option_callback(callback: types.CallbackQuery):
         await bot.send_message(callback.message.chat.id, "What movie do you want to add?")
         await StepForm.name_movie.set()
     if callback.data == "sort":
-        genres = get_genre_in_db(callback.message.chat.id)
+        genres = functionals_for_databasa.get_genre_in_db(callback.message.chat.id)
         markup = types.InlineKeyboardMarkup(row_width=1)
         for genre in genres:
             markup.add(types.InlineKeyboardButton(f"{genre[0]}", callback_data=genre[0]))
@@ -49,7 +47,7 @@ async def option_callback(callback: types.CallbackQuery):
 @dp.callback_query_handler(state=StepForm.genre)
 async def get_list_by_genre(callback: types.CallbackQuery, state: FSMContext):
     genre = callback.data
-    res = sort_movie(genre, callback.message.chat.id)
+    res = functionals_for_databasa.sort_movie(genre, callback.message.chat.id)
     await callback.message.answer(f"{res}")
 
 
@@ -74,7 +72,7 @@ async def add_information_about_film(callback: types.CallbackQuery, state: FSMCo
     if callback.data == "no":
         data = await state.get_data()
         name_movie, user_id = data.get("name_movie"), callback.message.chat.id
-        if add_movie_to_db(user_id, name_movie):
+        if functionals_for_databasa.add_movie_to_db(user_id, name_movie):
             await callback.message.answer(f'The movie has been added')
 
 
@@ -107,32 +105,32 @@ async def user_check_inf(callback: types.CallbackQuery, state: FSMContext):
     if callback.data == "yes":
         data = await state.get_data()
         name, year, genre = (data["name_movie"], data["year"], data["genre"])
-        if add_movie_to_db(callback.message.chat.id, name, year, genre):
+        if functionals_for_databasa.add_movie_to_db(callback.message.chat.id, name, year, genre):
             await callback.message.answer(f'The movie has been added')
             await state.finish()
     if callback.data == "no":
         await StepForm.year_genre.set()
 
 
-def add_movie_to_db(user_id, name, year=None, genre=None):
-    insert_query = f"INSERT INTO Movies (UserId, name, year_of_release, GENRE) VALUES (?, ?, ?, ?)"
-    record_to_insert = user_id, name, year, genre
-    cursor.execute(insert_query, record_to_insert)
-    conn.commit()
-    return True
-
-def sort_movie(genre, user_id):
-    cursor.execute("SELECT name FROM Movies WHERE GENRE = ? AND UserId = ?", (genre, user_id))
-    res = cursor.fetchall()
-    conn.commit()
-    return res
-
-
-def get_genre_in_db(user_id):
-    cursor.execute("SELECT DISTINCT GENRE FROM Movies WHERE UserId = ? AND (GENRE NOT NULL)", (user_id, ))
-    res = cursor.fetchall()
-    conn.commit()
-    return res
+# def add_movie_to_db(user_id, name, year=None, genre=None):
+#     insert_query = f"INSERT INTO Movies (UserId, name, year_of_release, GENRE) VALUES (?, ?, ?, ?)"
+#     record_to_insert = user_id, name, year, genre
+#     cursor.execute(insert_query, record_to_insert)
+#     conn.commit()
+#     return True
+#
+# def sort_movie(genre, user_id):
+#     cursor.execute("SELECT name FROM Movies WHERE GENRE = ? AND UserId = ?", (genre, user_id))
+#     res = cursor.fetchall()
+#     conn.commit()
+#     return res
+#
+#
+# def get_genre_in_db(user_id):
+#     cursor.execute("SELECT DISTINCT GENRE FROM Movies WHERE UserId = ? AND (GENRE NOT NULL)", (user_id, ))
+#     res = cursor.fetchall()
+#     conn.commit()
+#     return res
 
 
 
