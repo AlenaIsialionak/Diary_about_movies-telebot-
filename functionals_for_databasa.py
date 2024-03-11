@@ -9,7 +9,10 @@ def add_movie_to_db(user_id, name, year=None, genre=None):
     record_to_insert = user_id, name, year, genre
     cursor.execute(insert_query, record_to_insert)
     conn.commit()
-    return True
+    cursor.execute("SELECT max(id) FROM Movies")
+    id_movie = cursor.fetchall()
+    conn.commit()
+    return id_movie[0][0]
 
 def sort_movie(genre, user_id):
     cursor.execute("SELECT name FROM Movies WHERE GENRE = ? AND UserId = ?", (genre, user_id))
@@ -23,3 +26,9 @@ def get_genre_in_db(user_id):
     res = cursor.fetchall()
     conn.commit()
     return res
+
+
+def add_like_to_db(move_id, val):
+    cursor.execute("INSERT INTO Likes (MovieId, level_likes) VALUES (?, ?)", (move_id, val))
+    conn.commit()
+    return True

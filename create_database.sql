@@ -8,5 +8,22 @@ CREATE TABLE Movies (
     year_of_release INTEGER,
     GENRE VARCHAR(50),
     UserId INT,
+    time_add TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (UserId) REFERENCES Users(id)
+
+);
+
+CREATE TABLE Likes (
+    id INTEGER PRIMARY KEY,
+    level_likes INTEGER,
+    MovieId INT,
+    FOREIGN KEY (MovieId) REFERENCES Movies(id)
+
+);
+
+CREATE TABLE Keywords (
+    id INTEGER PRIMARY KEY,
+    words VARCHAR(100),
+    MovieId INT,
+    FOREIGN KEY (MovieId) REFERENCES Movies(id)
 );

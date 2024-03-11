@@ -18,6 +18,7 @@ class StepForm(StatesGroup):
     year_genre = State()
     add_to_db = State()
     genre = State()
+    like_dislike = State()
 
 
 @dp.message_handler(commands=['start'])
@@ -38,17 +39,25 @@ async def option_callback(callback: types.CallbackQuery):
         await StepForm.name_movie.set()
     if callback.data == "sort":
         genres = functionals_for_databasa.get_genre_in_db(callback.message.chat.id)
-        markup = types.InlineKeyboardMarkup(row_width=1)
+        markup1 = types.InlineKeyboardMarkup(row_width=1)
         for genre in genres:
-            markup.add(types.InlineKeyboardButton(f"{genre[0]}", callback_data=genre[0]))
+            markup1.add(types.InlineKeyboardButton(f"{genre[0]}", callback_data=genre[0]))
         await StepForm.genre.set()
-        await callback.message.answer("Please, choose the genre of the movies, what you wont to sort by", reply_markup=markup)
+        await callback.message.answer("Please, choose the genre of the movies, what you wont to sort by", reply_markup=markup1)
+    if callback.data == "get_watched_films":
+        markup2 = types.InlineKeyboardMarkup(row_width=1)
+        btn1 = types.InlineKeyboardButton("5 recently watched movies", callback_data="5 recently")
+        btn2 = types.InlineKeyboardButton("5 the most liked movies", callback_data="5 the most likes")
+        btn3 = types.InlineKeyboardButton("find movies by keywords", callback_data="by_keywords")
+        markup2.add(btn1, btn2, btn3)
+        await callback.message.answer("what a list of movies do you want to get?", reply_markup=markup2)
 
 @dp.callback_query_handler(state=StepForm.genre)
 async def get_list_by_genre(callback: types.CallbackQuery, state: FSMContext):
     genre = callback.data
     res = functionals_for_databasa.sort_movie(genre, callback.message.chat.id)
     await callback.message.answer(f"{res}")
+    await state.finish()
 
 
 @dp.message_handler(state=StepForm.name_movie)
@@ -61,6 +70,9 @@ async def input_name(message: types.Message, state: FSMContext):
     btn2 = types.InlineKeyboardButton("No", callback_data="no")
     markup1.add(btn1, btn2)
     await message.answer(f'Do you want to add the release year and the genre of the movie?', reply_markup=markup1)
+
+# @dp.callback_query_handler()
+# async def get_top_5_list_of_movies(callback: types.CallbackQuery):
 
 
 @dp.callback_query_handler(state=StepForm.name_movie)
@@ -105,32 +117,46 @@ async def user_check_inf(callback: types.CallbackQuery, state: FSMContext):
     if callback.data == "yes":
         data = await state.get_data()
         name, year, genre = (data["name_movie"], data["year"], data["genre"])
-        if functionals_for_databasa.add_movie_to_db(callback.message.chat.id, name, year, genre):
+        id_movie = functionals_for_databasa.add_movie_to_db(callback.message.chat.id, name, year, genre)
+        if id_movie:
             await callback.message.answer(f'The movie has been added')
+            markup = types.InlineKeyboardMarkup(row_width=3)
+            btn1 = types.InlineKeyboardButton("yes", callback_data="yes")
+            btn2 = types.InlineKeyboardButton("no", callback_data="no")
+            btn3 = types.InlineKeyboardButton("neutral", callback_data="neutral")
+            markup.add(btn1, btn2, btn3)
+            await callback.message.answer(f"The movie has been added!\n"
+                                          f"Did you like this movie? {id_movie}", reply_markup=markup)
             await state.finish()
+            await StepForm.like_dislike.set()
+            async with state.proxy() as data:
+                data['id_movie'] = id_movie
+
     if callback.data == "no":
         await StepForm.year_genre.set()
 
 
-# def add_movie_to_db(user_id, name, year=None, genre=None):
-#     insert_query = f"INSERT INTO Movies (UserId, name, year_of_release, GENRE) VALUES (?, ?, ?, ?)"
-#     record_to_insert = user_id, name, year, genre
-#     cursor.execute(insert_query, record_to_insert)
-#     conn.commit()
-#     return True
-#
-# def sort_movie(genre, user_id):
-#     cursor.execute("SELECT name FROM Movies WHERE GENRE = ? AND UserId = ?", (genre, user_id))
-#     res = cursor.fetchall()
-#     conn.commit()
-#     return res
-#
-#
-# def get_genre_in_db(user_id):
-#     cursor.execute("SELECT DISTINCT GENRE FROM Movies WHERE UserId = ? AND (GENRE NOT NULL)", (user_id, ))
-#     res = cursor.fetchall()
-#     conn.commit()
-#     return res
+@dp.callback_query_handler(state=StepForm.like_dislike)
+async def callback_likes_dislikes(callback: types.CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    id_movie = data.get("id_movie")
+    if callback.data == "yes":
+        if functionals_for_databasa.add_like_to_db(id_movie, 1):
+            await bot.send_message(callback.message.chat.id, "Added like")
+
+    elif callback.data == "no":
+        if functionals_for_databasa.add_like_to_db(id_movie, -1):
+            await bot.send_message(callback.message.chat.id, "Added dislike")
+    elif callback.data == "neutral":
+        if functionals_for_databasa.add_like_to_db(id_movie, 0):
+            await bot.send_message(callback.message.chat.id, "Added")
+    else:
+        await bot.send_message(callback.message.chat.id, "Sorry, something went wrong.")
+    await state.finish()
+
+
+
+
 
 
 
