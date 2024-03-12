@@ -32,3 +32,10 @@ def add_like_to_db(move_id, val):
     cursor.execute("INSERT INTO Likes (MovieId, level_likes) VALUES (?, ?)", (move_id, val))
     conn.commit()
     return True
+
+
+def get_list_of_5_movies(user_id):
+    cursor.execute("SELECT name FROM Movies WHERE UserId = ? ORDER BY id DESC LIMIT 5 ", (user_id, ))
+    res = cursor.fetchall()
+    conn.commit()
+    return res

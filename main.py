@@ -19,6 +19,7 @@ class StepForm(StatesGroup):
     add_to_db = State()
     genre = State()
     like_dislike = State()
+    get_list_of_5 = State()
 
 
 @dp.message_handler(commands=['start'])
@@ -51,6 +52,23 @@ async def option_callback(callback: types.CallbackQuery):
         btn3 = types.InlineKeyboardButton("find movies by keywords", callback_data="by_keywords")
         markup2.add(btn1, btn2, btn3)
         await callback.message.answer("what a list of movies do you want to get?", reply_markup=markup2)
+        await StepForm.get_list_of_5.set()
+
+
+@dp.callback_query_handler(state=StepForm.get_list_of_5)
+async def get_watched_films(callback: types.CallbackQuery, state: FSMContext):
+    user_id = callback.message.chat.id
+    match callback.data:
+        case "5 recently":
+            list_of_5 = functionals_for_databasa.get_list_of_5_movies(user_id)
+            sp = "\n".join([mov[0] for mov in list_of_5])
+            await callback.message.answer(f'{sp}')
+        case "5 the most likes":
+
+            pass
+        case "by_keywords":
+            pass
+
 
 @dp.callback_query_handler(state=StepForm.genre)
 async def get_list_by_genre(callback: types.CallbackQuery, state: FSMContext):
