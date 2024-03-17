@@ -6,8 +6,6 @@ import functionals_for_databasa
 
 TOKEN = open("TOKEN.txt", 'r').read()
 
-
-
 bot = Bot(TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
@@ -20,6 +18,8 @@ class StepForm(StatesGroup):
     genre = State()
     like_dislike = State()
     get_list_of_5 = State()
+    keywords = State()
+    sort_by_keywords = State()
 
 
 @dp.message_handler(commands=['start'])
@@ -61,13 +61,32 @@ async def get_watched_films(callback: types.CallbackQuery, state: FSMContext):
     match callback.data:
         case "5 recently":
             list_of_5 = functionals_for_databasa.get_list_of_5_movies(user_id)
-            sp = "\n".join([mov[0] for mov in list_of_5])
-            await callback.message.answer(f'{sp}')
+            recently_sp = "\n".join([mov[0] for mov in list_of_5])
+            await callback.message.answer(f'{recently_sp}')
         case "5 the most likes":
+            list_of_5 = functionals_for_databasa.get_list_of_favorite_5_movies(user_id, 1)
+            favorite_sp = "\n".join([mov[0] for mov in list_of_5])
+            await callback.message.answer(f'{favorite_sp}')
 
-            pass
         case "by_keywords":
-            pass
+            await bot.send_message(callback.message.chat.id, """please enter the words separated by a space\n"""
+                                                             """for which you want to find the movie""")
+            await StepForm.sort_by_keywords.set()
+
+
+@dp.message_handler(content_types=['text'], state=StepForm.sort_by_keywords)
+async def sort_film_by_keywords(message: types.Message, state: FSMContext):
+    keywords = message.text
+    list_keywords = keywords.split(' ')
+    list_of_movies = set()
+    for word in list_keywords:
+        movies = functionals_for_databasa.get_movie_by_keywords(word)
+        for movie in movies:
+            list_of_movies.add(movie[0])
+    res = '\n'.join([movie for movie in list_of_movies])
+    await message.answer(f"{res}")
+
+
 
 
 @dp.callback_query_handler(state=StepForm.genre)
@@ -89,9 +108,6 @@ async def input_name(message: types.Message, state: FSMContext):
     markup1.add(btn1, btn2)
     await message.answer(f'Do you want to add the release year and the genre of the movie?', reply_markup=markup1)
 
-# @dp.callback_query_handler()
-# async def get_top_5_list_of_movies(callback: types.CallbackQuery):
-
 
 @dp.callback_query_handler(state=StepForm.name_movie)
 async def add_information_about_film(callback: types.CallbackQuery, state: FSMContext):
@@ -103,8 +119,7 @@ async def add_information_about_film(callback: types.CallbackQuery, state: FSMCo
         data = await state.get_data()
         name_movie, user_id = data.get("name_movie"), callback.message.chat.id
         if functionals_for_databasa.add_movie_to_db(user_id, name_movie):
-            await callback.message.answer(f'The movie has been added')
-
+                await callback.message.answer(f"""The movie has been added""")
 
 
 @dp.message_handler(state=StepForm.year_genre)
@@ -137,7 +152,6 @@ async def user_check_inf(callback: types.CallbackQuery, state: FSMContext):
         name, year, genre = (data["name_movie"], data["year"], data["genre"])
         id_movie = functionals_for_databasa.add_movie_to_db(callback.message.chat.id, name, year, genre)
         if id_movie:
-            await callback.message.answer(f'The movie has been added')
             markup = types.InlineKeyboardMarkup(row_width=3)
             btn1 = types.InlineKeyboardButton("yes", callback_data="yes")
             btn2 = types.InlineKeyboardButton("no", callback_data="no")
@@ -156,21 +170,54 @@ async def user_check_inf(callback: types.CallbackQuery, state: FSMContext):
 
 @dp.callback_query_handler(state=StepForm.like_dislike)
 async def callback_likes_dislikes(callback: types.CallbackQuery, state: FSMContext):
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    btn1 = types.InlineKeyboardButton("Yes", callback_data="yes")
+    btn2 = types.InlineKeyboardButton("No", callback_data="no")
+    markup.add(btn1, btn2)
     data = await state.get_data()
     id_movie = data.get("id_movie")
     if callback.data == "yes":
         if functionals_for_databasa.add_like_to_db(id_movie, 1):
-            await bot.send_message(callback.message.chat.id, "Added like")
+            await bot.send_message(callback.message.chat.id, f"Added like!\n"
+            f"Do you want to add keywords for a future movie search?", reply_markup=markup)
 
     elif callback.data == "no":
         if functionals_for_databasa.add_like_to_db(id_movie, -1):
-            await bot.send_message(callback.message.chat.id, "Added dislike")
+            await bot.send_message(callback.message.chat.id, "Added dislike\n"
+            f"Do you want to add keywords for a future movie search?", reply_markup=markup)
     elif callback.data == "neutral":
         if functionals_for_databasa.add_like_to_db(id_movie, 0):
-            await bot.send_message(callback.message.chat.id, "Added")
+            await bot.send_message(callback.message.chat.id, f"Added\n"
+            f"Do you want to add keywords for a future movie search?", reply_markup=markup)
     else:
         await bot.send_message(callback.message.chat.id, "Sorry, something went wrong.")
-    await state.finish()
+    await StepForm.keywords.set()
+
+
+@dp.callback_query_handler(state=StepForm.keywords)
+async def add_keywords(callback: types.CallbackQuery, state: FSMContext):
+    match callback.data:
+        case "yes":
+            await bot.send_message(callback.message.chat.id, "Please, enter the words separated by a space")
+        case "no":
+            await state.finish()
+
+
+@dp.message_handler(content_types=['text'], state=StepForm.keywords)
+async def get_words_from_user(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    id_movie = data.get("id_movie")
+    keywords = message.text
+    list_keywords = keywords.split(' ')
+    for word in list_keywords:
+        await message.answer(f'{word}')
+        id_keywords = functionals_for_databasa.check_add_word(word)
+        if id_keywords:
+            functionals_for_databasa.add_to_movies_keywords(id_movie, id_keywords)
+            await message.answer('ok')
+        await state.finish()
+
+
 
 
 

@@ -23,7 +23,15 @@ CREATE TABLE Likes (
 
 CREATE TABLE Keywords (
     id INTEGER PRIMARY KEY,
-    words VARCHAR(100),
-    MovieId INT,
-    FOREIGN KEY (MovieId) REFERENCES Movies(id)
+    [words] VARCHAR(100)
 );
+
+CREATE TABLE Movies_Keywords (
+    id_movie INT,
+    id_keyword INT,
+    FOREIGN KEY (id_movie) REFERENCES Movies(id),
+    FOREIGN KEY (id_keyword) REFERENCES Keywords(id)
+);
+
+
+
